@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lglvae"
+version = "0.9.5"
+description = "A PyTorch implementation of LGL-VAE"
+authors = [
+    { name = "Jonathan Martin", email = "jxm170014@utdallas.edu" }
+]
+license = "MIT"
+readme = "README.md"
+keywords = ["machine-learning", "pytorch", "vae", "LGL", "DCA"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent"
+]
+dependencies = [
+    "torch>=2.0.0",
+    "numpy>=2.0.0",
+    "matplotlib",
+    "biopython",
+    "dca @ git+https://github.com/utdal/py-mfdca.git"
+]
+
+[project.urls]
+Homepage = "https://github.com/utdal/lgl-vae-pytorch"
