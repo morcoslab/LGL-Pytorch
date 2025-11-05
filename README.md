@@ -3,13 +3,7 @@
 #### This is a more user-friendly, Pytorch implementation of the LGL method.
 
 ## Installation
-To install, currently you can do with conda:
-```bash
-conda env create lglvae python=3.13
-pip install git+https://github.com/utdal/lgl-vae-pytorch.git
-
-```
-If you want to create an environment for this another way, I recommend uv:
+### Using uv (recommended)
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh             % first install UV
 uv python pin 3.13                                          % selects python version to use
@@ -19,7 +13,29 @@ uv venv                                                     % creates virtual en
 uv add git+ssh://git@github.com/utdal/lgl-vae-pytorch.git   % add package to your environment
 source .venv/bin/activate                                   % activate the environment
 ```
+### Using venv
+- First, get a python3 compiler
 
+For Unix:
+```bash
+python3 -m venv lglvae                                          % creates environment folder lglvae
+source lglvae/bin/activate                                      % Activate the environment
+pip install git+https://github.com/morcoslab/LGL-Pytorch.git    % creates virtual environment
+```
+
+For Windows:
+```bash
+python3 -m venv lglvae                                          % creates environment folder lglvae
+./lglvae/Scripts/activate                                       % Activate the environment
+pip install git+https://github.com/morcoslab/LGL-Pytorch.git    % creates virtual environment
+```
+
+### Using conda
+```bash
+conda env create lglvae python=3.13
+pip install git+https://github.com/utdal/lgl-vae-pytorch.git
+
+```
 ## Using the package
 To train a model, create the LGL, and plot the landscape with the training data:
 
@@ -125,3 +141,6 @@ After plotting a fasta set, you can also plot additional fasta files on top of t
 For the sequences you plotted with **"Training MSA"**, you can color the plot with the specific label assigned by a csv. The CSV should have a header row, and one row for each sequence in the Training MSA you plot. You can select which column you want to color the sequences with, then use the Legend tab to selectively show/hide sets of sequences based on their label.
 
 Also, with the **Lasso tool**, you can select sequences and it will populate a field on the right with the sequences which you can select and save elsewhere.
+
+## About HMMER and additional tools:
+The [py-mfdca][https://github.com/utdal/py-mfdca] module is installed as part of th requirements for the LGL. Some recent tools included in this module use pyhmmer which requires an installation HMMER. If you want to use this set of tools we recommend using UNIX systems or the WLS for Windows. __These tools are not require to use the LGL. If you don't plan to use them, don't worry too much about it.__
