@@ -25,4 +25,4 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/utdal/lgl-vae-pytorch"
+Homepage = "https://github.com/morcoslab/LGL-Pytorch"
