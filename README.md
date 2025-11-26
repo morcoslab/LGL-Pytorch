@@ -10,7 +10,7 @@ uv python pin 3.13                                          % selects python ver
 uv init newLGL                                              % creates environment folder lglvae
 cd newLGL
 uv venv                                                     % creates virtual environment
-uv add git+ssh://git@github.com/morcoslab/LGL-Pytorch.git   % add package to your environment
+uv add git+https://git@github.com/morcoslab/LGL-Pytorch.git   % add package to your environment
 source .venv/bin/activate                                   % activate the environment
 ```
 ### Using venv
