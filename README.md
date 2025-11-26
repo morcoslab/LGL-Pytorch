@@ -7,10 +7,10 @@
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh             % first install UV
 uv python pin 3.13                                          % selects python version to use
-uv init lglvae                                              % creates environment folder lglvae
-cd lglvae
+uv init newLGL                                              % creates environment folder lglvae
+cd newLGL
 uv venv                                                     % creates virtual environment
-uv add git+ssh://git@github.com/utdal/lgl-vae-pytorch.git   % add package to your environment
+uv add git+ssh://git@github.com/morcoslab/LGL-Pytorch.git   % add package to your environment
 source .venv/bin/activate                                   % activate the environment
 ```
 ### Using venv
