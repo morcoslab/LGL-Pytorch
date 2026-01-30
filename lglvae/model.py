@@ -56,7 +56,7 @@ class VAE(torch.nn.Module):
         return {"mu": mu, "logvar": logvar, "zed": zed, "recon_data": softmax_data}
 
     def kld(self, mu: torch.Tensor, logvar: torch.Tensor) -> torch.Tensor:
-        kld = 1 + logvar - mu.pow(2) - logvar.exp()
+        kld = logvar.add(1) - mu.pow(2) - logvar.exp()
         kld = -0.5 * kld.sum(dim=1)  # (batch,)
         return kld
 
