@@ -64,7 +64,7 @@ class Trainer:
         return dataloader
 
     def createOptimizer(self, model: VAE) -> torch.optim.Optimizer:
-        return torch.optim.AdamW(
+        return torch.optim.Adam(
             model.parameters(), self.learning_rate, weight_decay=self.regularization
         )
 
