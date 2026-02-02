@@ -37,14 +37,16 @@ class EarlyStopping:
 class Trainer:
     def __init__(
         self,
-        learning_rate: float = 1e-4,
+        learning_rate: float = 1e-3,
         early_stop_patience: int = 10,
         batch_size: int = 16,
         regularization: float = 1e-4,
+        epsilon: float = 1e-7,
     ) -> None:
         self.batch_size = batch_size
         self.learning_rate = learning_rate
         self.regularization = regularization
+        self.epsilon = epsilon
         self.earlystopping = EarlyStopping(patience=early_stop_patience)
         self.training_log = {"loss": list(), "reconstruction": list(), "kld": list()}
 
@@ -64,8 +66,11 @@ class Trainer:
         return dataloader
 
     def createOptimizer(self, model: VAE) -> torch.optim.Optimizer:
-        return torch.optim.AdamW(
-            model.parameters(), self.learning_rate, weight_decay=self.regularization
+        return torch.optim.Adam(
+            model.parameters(),
+            lr=self.learning_rate,
+            weight_decay=self.regularization*0,
+            eps=self.epsilon
         )
 
     def train(self, model: VAE, dataset: torch.Tensor, num_epochs: int = 10_000) -> VAE:
@@ -75,6 +80,8 @@ class Trainer:
         for epoch in range(num_epochs):
             epoch_losses = {"loss": 0, "reconstruction": 0, "kld": 0}
             num_batches = 0
+
+
             for batch in dataloader:
                 num_batches += 1
                 output = model.compute_elbo(batch)

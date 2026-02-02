@@ -17,7 +17,7 @@ from .train_utils import Trainer
 
 
 class LGLVAE:
-    def __init__(self, fasta_fn: str, alphabet: dict = seq_code) -> None:
+    def __init__(self, fasta_fn: str, alphabet: dict = seq_code,_lr: float = 1e-3) -> None:
         """Use createVAE() to train the VAE model using the fasta_fn and expected alphabet dictionary.
         Use createDCA() to create a DCA model using the fasta_fn.
         Use createLGL() to create the landscape grid data.
@@ -26,7 +26,7 @@ class LGLVAE:
         """
         self.fasta = fasta_fn
         self.alphabet = alphabet
-        self.VAETrainer = Trainer()
+        self.VAETrainer = Trainer(learning_rate=_lr)
 
     def createVAE(self, output_fn: str = "", device: str = "detect") -> None:
         """Loads data, and trains the VAE model according to our default parameters.
@@ -50,9 +50,13 @@ class LGLVAE:
         input_dim = (
             one_hot_data.shape[1] * one_hot_data.shape[2]
         )  # size when flattened
-        hidden_units = one_hot_data.shape[1]  # sequence length
+        hidden_units = 3*one_hot_data.shape[1]  # 3*sequence length
 
-        model = VAE(input_dim, hidden_units, num_aa=one_hot_data.shape[2])
+        model = VAE(input_dim=input_dim,
+                    hidden_u=hidden_units,
+                    num_aa=one_hot_data.shape[2],
+                    latent_dim=2,
+                    l2_reg=self.VAETrainer.regularization)
 
         # move data to device
         model.to(device)
