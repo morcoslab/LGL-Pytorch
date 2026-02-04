@@ -1,4 +1,3 @@
-from typing import Dict
 import torch.nn.functional as F
 import torch
 
@@ -58,14 +57,21 @@ class VAE(torch.nn.Module):
         return self.l2_reg * (enc_w.pow(2).sum() + dec_w.pow(2).sum())
 
 
-    def forward(self, data: torch.Tensor) -> Dict:
-        """Encode, sample, decode. Returns:
-        'mu', 'logsigma', 'zed', 'recon_data'
-        'zed' is the sample after reparameterizing mu and logsigma.
-        'recon_data' is the post-softmax output"""
+    def forward(self, data: torch.Tensor) -> dict[str, torch.Tensor]:
+        """Encode, sample, decode.
+
+        Returns:
+            dict with keys: 'mu', 'logvar', 'zed', 'recon_data'
+            - 'zed' is the sample after reparameterizing mu and logvar
+            - 'recon_data' is post-softmax output (batch, num_aa, seq_len)
+              Matches TensorFlow: Reshape((num_aa, seq_len)) + Softmax(axis=1)
+        """
         encoder_projection = self.encoder_base(data)
         mu = self.encoder_mu(encoder_projection)
         logvar = self.encoder_logvar(encoder_projection)
+
+        # Clamp log_var to prevent exp() overflow (numerical stability)
+        logvar = torch.clamp(logvar, min=-30, max=20)
 
         # reparameterization: z = mu + exp(0.5 * logvar) * eps
         std = (0.5 * logvar).exp()
@@ -75,10 +81,16 @@ class VAE(torch.nn.Module):
         # decode
         recon_logits = self.decoder(zed)
 
-        # reshape, softmax on aa dimension (like axis=1 in TF code)
+        # Reshape to (batch, num_aa, seq_len) - MATCHES TensorFlow
+        # TF: Reshape((self.num_aa_type, self.dim_msa_vars))
+        seq_len = data.shape[1] // self.num_aa
         softmax_data = recon_logits.reshape(
-            data.shape[0], data.shape[1] // self.num_aa, self.num_aa
-        ).softmax(-1)
+            data.shape[0], self.num_aa, seq_len
+        )
+
+        # Softmax on dim=1 (amino acids) - MATCHES TensorFlow axis=1
+        # At each position, amino acid probabilities sum to 1
+        softmax_data = softmax_data.softmax(dim=1)
 
         return {"mu": mu, "logvar": logvar, "zed": zed, "recon_data": softmax_data}
 
@@ -87,13 +99,22 @@ class VAE(torch.nn.Module):
         kld = -0.5 * kld.sum(dim=1)  # (batch,)
         return kld
 
-    def compute_elbo(self, data: torch.Tensor) -> Dict:
+    def compute_elbo(self, data: torch.Tensor) -> dict[str, torch.Tensor]:
+        """Compute ELBO loss with L2 regularization.
+
+        Returns:
+            dict with keys: 'loss', 'reconstruction', 'kld'
+        """
         output = self.forward(data)
 
         # flatten decoder output back to (batch, D)
         recon_flat = output["recon_data"].flatten(1)  # (batch, D)
 
-        recon_loss = F.binary_cross_entropy(recon_flat,
+        # Clamp for numerical stability (prevents log(0) in BCE)
+        recon_clamped = torch.clamp(recon_flat, min=1e-7, max=1.0 - 1e-7)
+
+
+        recon_loss = F.binary_cross_entropy(recon_clamped,
             data,reduction="none").sum(dim=1)
         kl_loss = self.kld(output["mu"], output["logvar"])  # (batch,)
 

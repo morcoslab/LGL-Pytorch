@@ -1,4 +1,5 @@
 import torch
+import copy
 from .model import VAE
 
 
@@ -74,13 +75,28 @@ class Trainer:
         )
 
     def train(self, model: VAE, dataset: torch.Tensor, num_epochs: int = 10_000) -> VAE:
+        """Train the VAE model.
+
+        Args:
+            model: VAE model to train
+            dataset: One-hot encoded dataset tensor
+            num_epochs: Maximum number of epochs
+
+        Returns:
+            Trained model with best weights restored
+        """        
         dataloader = self.createDataLoader(dataset)
         optimizer = self.createOptimizer(model)
 
+        # Track best model state (fixes Keras restore_best_weights bug)
+        best_model_state = copy.deepcopy(model.state_dict())
+        best_loss = float("inf")
+        best_epoch = 0
+
         for epoch in range(num_epochs):
+            model.train()
             epoch_losses = {"loss": 0, "reconstruction": 0, "kld": 0}
             num_batches = 0
-
 
             for batch in dataloader:
                 num_batches += 1
@@ -96,6 +112,12 @@ class Trainer:
                 epoch_losses[term] /= num_batches
                 self.training_log[term].append(epoch_losses[term])
 
+            # Save best model state
+            if epoch_losses["loss"] < best_loss:
+                best_loss = epoch_losses["loss"]
+                best_epoch = epoch + 1
+                best_model_state = copy.deepcopy(model.state_dict())
+
             print(
                 f"Epoch {epoch+1}: "
                 + ", ".join([f"{r[0]}:{round(r[1],3)}" for r in epoch_losses.items()])
@@ -104,7 +126,11 @@ class Trainer:
             # early stopping
             if self.earlystopping(epoch_losses["loss"]):
                 print("Early stopping, training has completed.")
-                return model
+                break
+
+        # Always restore best weights
+        model.load_state_dict(best_model_state)
+        print(f"Restored best model from epoch {best_epoch} (loss: {best_loss:.6f})")
         return model
 
     def getLandscapeBounds(

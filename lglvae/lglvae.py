@@ -1,6 +1,8 @@
 import os
+import os
+os.environ.setdefault('NUMBA_NUM_THREADS', '1')
+os.environ.setdefault('NUMBA_THREADING_LAYER', 'workqueue')
 import pickle
-from typing import List, Union
 
 import numpy as np
 import torch
@@ -17,7 +19,11 @@ from .train_utils import Trainer
 
 
 class LGLVAE:
-    def __init__(self, fasta_fn: str, alphabet: dict = seq_code,_lr: float = 1e-3) -> None:
+    def __init__(
+            self,
+            fasta_fn: str,
+            alphabet: dict[str, int] = seq_code,
+            _lr: float = 1e-3) -> None:
         """Use createVAE() to train the VAE model using the fasta_fn and expected alphabet dictionary.
         Use createDCA() to create a DCA model using the fasta_fn.
         Use createLGL() to create the landscape grid data.
@@ -47,14 +53,16 @@ class LGLVAE:
         one_hot_data = one_hot_encode_fasta(
             self.fasta, self.alphabet, device=device
         )
-        input_dim = (
-            one_hot_data.shape[1] * one_hot_data.shape[2]
-        )  # size when flattened
-        hidden_units = 3*one_hot_data.shape[1]  # 3*sequence length
+
+        # Shape is (batch, num_aa, seq_len) - TensorFlow convention
+        num_aa = one_hot_data.shape[1]
+        seq_len = one_hot_data.shape[2]
+        input_dim = num_aa * seq_len  # size when flattened
+        hidden_units = 3 * seq_len  # 3*sequence length
 
         model = VAE(input_dim=input_dim,
                     hidden_u=hidden_units,
-                    num_aa=one_hot_data.shape[2],
+                    num_aa=num_aa,
                     latent_dim=2,
                     l2_reg=self.VAETrainer.regularization)
 
@@ -129,19 +137,37 @@ class LGLVAE:
 
         coordinate_hamiltonians = np.zeros(len(coordinates))
 
-        for idx, batch in enumerate(coordinate_loader):
-            decoded_sequences = self.VAE.decoder(batch)
-            softmax_sequences = decoded_sequences.reshape(
-                len(batch), sequences.shape[1], sequences.shape[2]
-            ).softmax(-1)
-            argmax_sequences = softmax_sequences.argmax(-1).numpy()
-            hamiltonians = return_Hamiltonian(
-                argmax_sequences, self.DCA.couplings, self.DCA.localfields
-            )
+        # Ensure model is in eval mode and disable gradients for inference
+        self.VAE.eval()
+        with torch.no_grad():
+            for idx, batch in enumerate(coordinate_loader):
+                decoded_sequences = self.VAE.decoder(batch)
+                # Shape: (batch, num_aa, seq_len) - TensorFlow convention
+                # sequences.shape[1] = num_aa, sequences.shape[2] = seq_len
+                softmax_sequences = decoded_sequences.reshape(
+                    len(batch), sequences.shape[1], sequences.shape[2]
+                ).softmax(dim=1)  # softmax over amino acids (dim=1)
+                argmax_sequences = softmax_sequences.argmax(dim=1).numpy()  # argmax over amino acids
 
-            coordinate_hamiltonians[
-                idx * len(batch) : (idx * len(batch)) + len(batch)
-            ] = hamiltonians
+                # Validate sequences are in valid range before passing to DCA
+                num_aa = sequences.shape[1]
+                if argmax_sequences.max() >= num_aa:
+                    raise ValueError(
+                        f"Invalid amino acid index {argmax_sequences.max()} >= {num_aa}"
+                    )
+                if argmax_sequences.min() < 0:
+                    raise ValueError(
+                        f"Negative amino acid index: {argmax_sequences.min()}"
+                    )
+
+                hamiltonians = return_Hamiltonian(
+                    argmax_sequences, self.DCA.couplings, self.DCA.localfields
+                )
+
+                coordinate_hamiltonians[
+                    idx * len(batch) : (idx * len(batch)) + len(batch)
+                ] = hamiltonians
+
 
         # Save to new class variable
         self.LGL = np.hstack((coordinates, coordinate_hamiltonians[:, None]))
@@ -213,9 +239,9 @@ class LGLVAE:
 
     def generate_sequences(
         self,
-        coordinates: Union[np.array, torch.tensor],
+        coordinates: np.ndarray | torch.Tensor,
         argmax_sequence: bool = True,
-    ) -> List[SeqRecord]:
+    ) -> list[SeqRecord]:
         """Takes numpy/torch arrays as input, and gives sequence strings as output.
         Gives either the maximum probability sequence or a sampled sequence."""
         if not hasattr(self, "VAE"):
@@ -223,27 +249,37 @@ class LGLVAE:
                 "Trained VAE not found, run createVAE() first."
             )
         if isinstance(coordinates, np.ndarray):
-            coordinates = torch.tensor(coordinates)
+            coordinates = torch.tensor(coordinates, dtype=torch.float32)
+        elif coordinates.dtype != torch.float32:
+            coordinates = coordinates.float()
         if coordinates.ndim == 1:
             coordinates = coordinates[None]
 
         decoded_distributions = self.VAE.decoder(coordinates)
+
+        # Reshape to (batch, num_aa, seq_len) - TensorFlow convention
+        seq_len = decoded_distributions.shape[1] // self.VAE.num_aa
         softmax_distribution = decoded_distributions.reshape(
             decoded_distributions.shape[0],
-            decoded_distributions.shape[1] // self.VAE.num_aa,
             self.VAE.num_aa,
-        ).softmax(-1)
+            seq_len,
+        ).softmax(dim=1)  # softmax over amino acids (dim=1)
+
 
         if argmax_sequence:
-            numeric_sequences = softmax_distribution.argmax(-1).detach().numpy()
+            # argmax over amino acids (dim=1), result shape: (batch, seq_len)
+            numeric_sequences = softmax_distribution.argmax(dim=1).detach().numpy()
         else:
+            # For sampling, transpose to (batch, seq_len, num_aa) for easier iteration
+            # Each position needs amino acid probabilities
+            transposed = softmax_distribution.permute(0, 2, 1).detach().numpy()
             numeric_sequences = np.array(
                 [
                     [
                         np.random.choice(self.VAE.num_aa, p=site_probs)
-                        for site_probs in sequence_probs
+                        for site_probs in sequence_probs  # iterates over seq_len positions
                     ]
-                    for sequence_probs in softmax_distribution.detach().numpy()
+                    for sequence_probs in transposed  # iterates over batch
                 ]
             )
 
