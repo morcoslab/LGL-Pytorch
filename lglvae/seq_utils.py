@@ -3,6 +3,7 @@ from Bio import SeqIO
 
 seq_code = {keys: index for index, keys in enumerate("-ACDEFGHIKLMNPQRSTVWY")}
 
+
 def one_hot_encode_fasta(
     fasta_file: str, alphabet: dict = seq_code, device: str = "cpu"
 ) -> torch.Tensor:
@@ -22,11 +23,15 @@ def one_hot_encode_fasta(
     num_aa = len(set(item[1] for item in alphabet.items()))
     try:
         numeric_sequences = torch.tensor(
-            [[seq_code[aa] for aa in seq.seq] for seq in loaded_seqs], device=device
+            [
+                [seq_code[aa] if aa in seq_code else seq_code["-"] for aa in seq.seq]
+                for seq in loaded_seqs
+            ],
+            device=device,
         ).long()
     except ValueError:
         raise ValueError("Not all sequences are the same length (probably).")
-    
+
     # one_hot produces (batch, seq_len, num_aa)
     one_hot_sequences = torch.nn.functional.one_hot(numeric_sequences, num_aa).float()
 

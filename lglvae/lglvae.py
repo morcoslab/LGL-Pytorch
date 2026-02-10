@@ -7,8 +7,7 @@ from Bio.SeqRecord import SeqRecord
 from dca.dca_class import dca
 from dca.dca_functions import return_Hamiltonian
 from matplotlib.axes import Axes
-from matplotlib.image import AxesImage
-
+from matplotlib.contour import QuadContourSet
 from .model import VAE
 from .seq_utils import one_hot_encode_fasta, seq_code
 from .train_utils import Trainer
@@ -16,10 +15,8 @@ from .train_utils import Trainer
 
 class LGLVAE:
     def __init__(
-            self,
-            fasta_fn: str,
-            alphabet: dict[str, int] = seq_code,
-            _lr: float = 1e-3) -> None:
+        self, fasta_fn: str, alphabet: dict[str, int] = seq_code, _lr: float = 1e-3
+    ) -> None:
         """Use createVAE() to train the VAE model using the fasta_fn and expected alphabet dictionary.
         Use createDCA() to create a DCA model using the fasta_fn.
         Use createLGL() to create the landscape grid data.
@@ -46,9 +43,7 @@ class LGLVAE:
             device = "cpu"
         print(f"Training using device: {device}")
 
-        one_hot_data = one_hot_encode_fasta(
-            self.fasta, self.alphabet, device=device
-        )
+        one_hot_data = one_hot_encode_fasta(self.fasta, self.alphabet, device=device)
 
         # Shape is (batch, num_aa, seq_len) - TensorFlow convention
         num_aa = one_hot_data.shape[1]
@@ -56,11 +51,13 @@ class LGLVAE:
         input_dim = num_aa * seq_len  # size when flattened
         hidden_units = 3 * seq_len  # 3*sequence length
 
-        model = VAE(input_dim=input_dim,
-                    hidden_u=hidden_units,
-                    num_aa=num_aa,
-                    latent_dim=2,
-                    l2_reg=self.VAETrainer.regularization)
+        model = VAE(
+            input_dim=input_dim,
+            hidden_u=hidden_units,
+            num_aa=num_aa,
+            latent_dim=2,
+            l2_reg=self.VAETrainer.regularization,
+        )
 
         # move data to device
         model.to(device)
@@ -78,9 +75,7 @@ class LGLVAE:
         # Save LGLVAE class with filename (if provided)
         self.save(output_fn)
 
-    def createDCA(
-        self, output_fn: str = "", cdist_batch_size: int = 50_000
-    ) -> None:
+    def createDCA(self, output_fn: str = "", cdist_batch_size: int = 50_000) -> None:
         """If you run out of memory while running this function (sorry),
         lower the value of cdist_batch_size (at the cost of some speed).
         If output_fn is provided, it will save a pickle of the LGLVAE class.
@@ -107,9 +102,7 @@ class LGLVAE:
                 "Training Fasta file not found, required for determining bounds."
             )
         if not hasattr(self, "VAE"):
-            raise AttributeError(
-                "Trained VAE not found, run createVAE() first."
-            )
+            raise AttributeError("Trained VAE not found, run createVAE() first.")
         if not hasattr(self, "DCA"):
             raise AttributeError("DCA model not found, run createDCA() first.")
 
@@ -142,8 +135,12 @@ class LGLVAE:
                 # sequences.shape[1] = num_aa, sequences.shape[2] = seq_len
                 softmax_sequences = decoded_sequences.reshape(
                     len(batch), sequences.shape[1], sequences.shape[2]
-                ).softmax(dim=1)  # softmax over amino acids (dim=1)
-                argmax_sequences = softmax_sequences.argmax(dim=1).numpy()  # argmax over amino acids
+                ).softmax(
+                    dim=1
+                )  # softmax over amino acids (dim=1)
+                argmax_sequences = softmax_sequences.argmax(
+                    dim=1
+                ).numpy()  # argmax over amino acids
 
                 # Validate sequences are in valid range before passing to DCA
                 num_aa = sequences.shape[1]
@@ -163,7 +160,6 @@ class LGLVAE:
                 coordinate_hamiltonians[
                     idx * len(batch) : (idx * len(batch)) + len(batch)
                 ] = hamiltonians
-
 
         # Save to new class variable
         self.LGL = np.hstack((coordinates, coordinate_hamiltonians[:, None]))
@@ -190,7 +186,7 @@ class LGLVAE:
 
     def plot_landscape(
         self, axes: Axes, contour_levels: int = 1_000, colormap: str = "viridis"
-    ) -> AxesImage:
+    ) -> QuadContourSet:
         """Takes matplotlib axis and plots the landscape on it, returns image for colorbar."""
         if not hasattr(self, "LGL"):
             raise AttributeError("LGL not found, run createLGL() first.")
@@ -208,15 +204,11 @@ class LGLVAE:
 
         return image
 
-    def encode_sequences(
-        self, fasta_fn: str, batch_size: int = 10_000
-    ) -> np.ndarray:
+    def encode_sequences(self, fasta_fn: str, batch_size: int = 10_000) -> np.ndarray:
         """Load sequences and encode as mu coordinates with encoder."""
 
         if not hasattr(self, "VAE"):
-            raise AttributeError(
-                "Trained VAE not found, run createVAE() first."
-            )
+            raise AttributeError("Trained VAE not found, run createVAE() first.")
         sequences = one_hot_encode_fasta(fasta_fn, self.alphabet)
         dataloader = self.VAETrainer.createDataLoader(
             sequences, batch_size=batch_size, shuffle=False
@@ -241,9 +233,7 @@ class LGLVAE:
         """Takes numpy/torch arrays as input, and gives sequence strings as output.
         Gives either the maximum probability sequence or a sampled sequence."""
         if not hasattr(self, "VAE"):
-            raise AttributeError(
-                "Trained VAE not found, run createVAE() first."
-            )
+            raise AttributeError("Trained VAE not found, run createVAE() first.")
         if isinstance(coordinates, np.ndarray):
             coordinates = torch.tensor(coordinates, dtype=torch.float32)
         elif coordinates.dtype != torch.float32:
@@ -259,8 +249,9 @@ class LGLVAE:
             decoded_distributions.shape[0],
             self.VAE.num_aa,
             seq_len,
-        ).softmax(dim=1)  # softmax over amino acids (dim=1)
-
+        ).softmax(
+            dim=1
+        )  # softmax over amino acids (dim=1)
 
         if argmax_sequence:
             # argmax over amino acids (dim=1), result shape: (batch, seq_len)
