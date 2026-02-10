@@ -1,5 +1,4 @@
 import torch
-import copy
 from .model import VAE
 
 
@@ -70,9 +69,17 @@ class Trainer:
         return torch.optim.Adam(
             model.parameters(),
             lr=self.learning_rate,
-            weight_decay=self.regularization*0,
+            weight_decay=0,
             eps=self.epsilon
         )
+    
+    def _snapshot_state_dict_cpu(self, model: torch.nn.Module) -> dict:
+        """
+        Save best weights as detached CPU clones.
+        No need for copy/deepcopy; model.state_dict() is tensors in typical PyTorch modules.
+        """
+        return {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
+
 
     def train(self, model: VAE, dataset: torch.Tensor, num_epochs: int = 10_000) -> VAE:
         """Train the VAE model.
@@ -88,8 +95,10 @@ class Trainer:
         dataloader = self.createDataLoader(dataset)
         optimizer = self.createOptimizer(model)
 
+        device = next(model.parameters()).device
+
         # Track best model state (fixes Keras restore_best_weights bug)
-        best_model_state = copy.deepcopy(model.state_dict())
+        best_model_state = None
         best_loss = float("inf")
         best_epoch = 0
 
@@ -100,10 +109,13 @@ class Trainer:
 
             for batch in dataloader:
                 num_batches += 1
+                batch = batch.to(device=device, non_blocking=True)
+
                 output = model.compute_elbo(batch)
-                optimizer.zero_grad()
+                optimizer.zero_grad(set_to_none=True)
                 output["loss"].backward()
                 optimizer.step()
+                
                 for term in output.items():
                     epoch_losses[term[0]] += term[1].item()
 
@@ -116,7 +128,7 @@ class Trainer:
             if epoch_losses["loss"] < best_loss:
                 best_loss = epoch_losses["loss"]
                 best_epoch = epoch + 1
-                best_model_state = copy.deepcopy(model.state_dict())
+                best_model_state = self._snapshot_state_dict_cpu(model)
 
             print(
                 f"Epoch {epoch+1}: "
@@ -129,7 +141,10 @@ class Trainer:
                 break
 
         # Always restore best weights
-        model.load_state_dict(best_model_state)
+        if best_model_state is not None:
+            # PyTorch will copy CPU tensors into the model's parameter tensors (on GPU/CPU as appropriate)
+            model.load_state_dict(best_model_state)
+
         print(f"Restored best model from epoch {best_epoch} (loss: {best_loss:.6f})")
         return model
 
