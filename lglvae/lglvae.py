@@ -1,9 +1,5 @@
 import os
-import os
-os.environ.setdefault('NUMBA_NUM_THREADS', '1')
-os.environ.setdefault('NUMBA_THREADING_LAYER', 'workqueue')
 import pickle
-
 import numpy as np
 import torch
 from Bio.Seq import Seq
