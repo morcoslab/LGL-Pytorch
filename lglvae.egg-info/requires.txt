@@ -1,5 +1,0 @@
-torch>=2.0.0
-numpy>=2.0.0
-matplotlib
-biopython
-dca @ git+https://github.com/utdal/py-mfdca.git
