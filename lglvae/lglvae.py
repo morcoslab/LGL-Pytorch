@@ -75,13 +75,16 @@ class LGLVAE:
         # Save LGLVAE class with filename (if provided)
         self.save(output_fn)
 
-    def createDCA(self, output_fn: str = "", cdist_batch_size: int = 50_000) -> None:
+    def createDCA(self, output_fn: str = "", cdist_batch_size: int = 50_000, custom_alphabet: dict = None) -> None:
         """If you run out of memory while running this function (sorry),
         lower the value of cdist_batch_size (at the cost of some speed).
         If output_fn is provided, it will save a pickle of the LGLVAE class.
         (You should really save the output of this)."""
 
-        self.DCA = dca(self.fasta, stype=self.alphabet)
+        if custom_alphabet:
+            self.DCA = dca(self.fasta, stype=custom_alphabet)
+        else:
+            self.DCA = dca(self.fasta)
         self.DCA.mean_field(cdist_batch_size=cdist_batch_size)
 
         # Save LGLVAE class with filename (if provided)
