@@ -215,11 +215,11 @@ class LGLVAE:
         """Takes numpy/torch arrays as input, and gives sequence strings as output.
         Gives either the maximum probability sequence or a sampled sequence."""
         if not hasattr(self, "VAE"):
-            raise AttributeError(
-                "Trained VAE not found, run createVAE() first."
-            )
+            raise AttributeError("Trained VAE not found, run createVAE() first.")
         if isinstance(coordinates, np.ndarray):
-            coordinates = torch.tensor(coordinates)
+            coordinates = torch.tensor(coordinates, dtype=torch.float32)
+        elif coordinates.dtype != torch.float32:
+            coordinates = coordinates.float()
         if coordinates.ndim == 1:
             coordinates = coordinates[None]
 
